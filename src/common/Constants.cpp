@@ -242,6 +242,7 @@ const std::string UPGRADE_HOST_ACCOUNT{
     ReadFromOptionsFile("UPGRADE_HOST_ACCOUNT")};
 const std::string UPGRADE_HOST_REPO{ReadFromOptionsFile("UPGRADE_HOST_REPO")};
 const bool ARCHIVAL_NODE{ReadFromOptionsFile("ARCHIVAL_NODE") == "true"};
+const bool ARCHIVAL_LOOKUP{ReadFromOptionsFile("ARCHIVAL_LOOKUP") == "true"};
 
 // gas
 const unsigned int MICROBLOCK_GAS_LIMIT{

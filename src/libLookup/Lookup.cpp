@@ -3004,7 +3004,8 @@ bool Lookup::Execute(const vector<unsigned char>& message, unsigned int offset,
       &Lookup::ProcessSetDirectoryBlocksFromSeed,
       &Lookup::ProcessGetStateDeltaFromSeed,
       &Lookup::ProcessSetStateDeltaFromSeed,
-      &Lookup::ProcessVCGetLatestDSTxBlockFromSeed};
+      &Lookup::ProcessVCGetLatestDSTxBlockFromSeed,
+      &Lookup::ProcessForwardTxn};
   const unsigned char ins_byte = message.at(offset);
   const unsigned int ins_handlers_count =
       sizeof(ins_handlers) / sizeof(InstructionHandler);
@@ -3108,10 +3109,10 @@ void Lookup::SendTxnPacketToNodes(uint32_t numShards) {
 
   map<uint32_t, vector<Transaction>> mp;
 
-  if (!GenTxnToSend(NUM_TXN_TO_SEND_PER_ACCOUNT, mp, numShards)) {
+  /*if (!GenTxnToSend(NUM_TXN_TO_SEND_PER_ACCOUNT, mp, numShards)) {
     LOG_GENERAL(WARNING, "GenTxnToSend failed");
     // return;
-  }
+  }*/
 
   for (unsigned int i = 0; i < numShards + 1; i++) {
     vector<unsigned char> msg = {MessageType::NODE,
@@ -3204,6 +3205,37 @@ bool Lookup::VerifyLookupNode(const VectorOfLookupNode& vecLookupNodes,
                      return node.first == pubKeyToVerify;
                    });
   return vecLookupNodes.cend() != iter;
+}
+
+bool Lookup::ProcessForwardTxn(const vector<unsigned char>& message,
+                               unsigned int offset, const Peer& from) {
+  vector<Transaction> txns;
+  if (!Messenger::GetTransactionArray(message, offset, txns)) {
+    LOG_GENERAL(WARNING, "Failed to Messenger::GetTransactionArray");
+    return false;
+  }
+
+  LOG_GENERAL(INFO, "Recvd from " << from);
+
+  uint32_t shard_size = 0;
+  {
+    lock_guard<mutex> g(m_mediator.m_ds->m_mutexShards);
+    shard_size = m_mediator.m_ds->m_shards.size();
+  }
+
+  if (shard_size == 0) {
+    LOG_GENERAL(WARNING, "Shard size 0");
+    return false;
+  }
+
+  for (auto txn : txns) {
+    const PubKey& senderPubKey = txn.GetSenderPubKey();
+    const Address fromAddr = Account::GetAddressFromPublicKey(senderPubKey);
+    unsigned int shard = Transaction::GetShardIndex(fromAddr, shard_size);
+    AddToTxnShardMap(txn, shard);
+  }
+
+  return true;
 }
 
 bool Lookup::ProcessVCGetLatestDSTxBlockFromSeed(
